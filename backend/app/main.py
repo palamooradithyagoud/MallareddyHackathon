@@ -24,11 +24,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Register routers
-app.include_router(auth.router)
-app.include_router(profile.router)
-app.include_router(resume.router)
-app.include_router(job.router)
+# Register routers with /api prefix
+app.include_router(auth.router, prefix="/api")
+app.include_router(profile.router, prefix="/api")
+app.include_router(resume.router, prefix="/api")
+app.include_router(job.router, prefix="/api")
 
 # Serve uploaded resumes as static files (useful for front-end download/view link)
 UPLOAD_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "uploads")
