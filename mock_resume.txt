@@ -1,0 +1,15 @@
+John Doe
+Stanford University
+Bachelor of Science in Computer Science, GPA: 3.8, 2020 - 2024
+
+Innovative Solutions Corp
+Software Engineer, 2023-06 - Present
+Led the frontend team in migration to React with TypeScript. Optimized API performance on FastAPI backend by 35%. Managed deployments using Docker and GitHub Actions.
+
+E-Commerce Microservices Platform Project
+Built scalable store endpoints serving high requests per second. Used React on the frontend and FastAPI on the backend.
+
+AWS Certified Solutions Architect, Amazon Web Services, 2024
+
+Skills: Python, JavaScript, TypeScript, React, Node.js, FastAPI, SQL, Docker, AWS, Git
+Preferences: Software Engineer, Full-time, Remote, New York, $90,000
