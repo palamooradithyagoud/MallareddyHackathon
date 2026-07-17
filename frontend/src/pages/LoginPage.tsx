@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Mail, Lock, LogIn, AlertTriangle, ArrowRight } from 'lucide-react';
 import { authService } from '../services/api';
+import { supabase } from '../utils/supabaseClient';
 
 interface LoginPageProps {
   onLogin: (token: string, user: any) => void;
@@ -14,69 +15,62 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  // Helper to decode JWT payloads in client space without dependencies
-  const decodeJwt = (token: string) => {
+  // Sync session details from Supabase with our backend database
+  const syncSessionWithBackend = async (session: any) => {
+    if (!session || !session.user) return;
     try {
-      const base64Url = token.split('.')[1];
-      const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-      const jsonPayload = decodeURIComponent(
-        window.atob(base64)
-          .split('')
-          .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
-          .join('')
-      );
-      return JSON.parse(jsonPayload);
-    } catch (e) {
-      return null;
+      const googleEmail = session.user.email;
+      const googleName = session.user.user_metadata?.full_name || session.user.user_metadata?.name || googleEmail?.split('@')[0] || "Google User";
+      
+      const data = await authService.googleLogin({
+        credential: session.access_token,
+        email: googleEmail,
+        full_name: googleName
+      });
+      
+      onLogin(data.access_token, {
+        id: data.user_id,
+        email: data.email,
+        full_name: data.full_name,
+      });
+      navigate('/dashboard');
+    } catch (err: any) {
+      console.error("Backend Session Sync Error:", err);
+      setErrorMsg("Failed to synchronize session with the backend database.");
     }
   };
 
-  // Check URL hash fragment for Supabase OAuth redirect parameters
+  // Check current session state and listen for login redirect events
   useEffect(() => {
-    const handleOAuthCallback = async () => {
-      if (window.location.hash) {
-        const hash = window.location.hash.substring(1);
-        const params = new URLSearchParams(hash);
-        const accessToken = params.get('access_token');
-        
-        if (accessToken) {
-          setLoading(true);
-          setErrorMsg(null);
-          try {
-            const payload = decodeJwt(accessToken);
-            if (payload) {
-              const googleEmail = payload.email;
-              const googleName = payload.user_metadata?.full_name || payload.user_metadata?.name || googleEmail.split('@')[0];
-              
-              // Register/login in our application DB
-              const data = await authService.googleLogin({
-                credential: accessToken,
-                email: googleEmail,
-                full_name: googleName
-              });
-              
-              // Clean URL hash so refreshing doesn't re-trigger OAuth callback
-              window.history.replaceState(null, '', window.location.pathname);
-              
-              onLogin(data.access_token, {
-                id: data.user_id,
-                email: data.email,
-                full_name: data.full_name,
-              });
-              navigate('/dashboard');
-            } else {
-              throw new Error("Unable to parse identity token");
-            }
-          } catch (err: any) {
-            console.error("OAuth Callback Error:", err);
-            setErrorMsg("Google authentication failed. Please try again.");
-          } finally {
-            setLoading(false);
-          }
+    const checkActiveSession = async () => {
+      setLoading(true);
+      try {
+        const { data: { session }, error } = await supabase.auth.getSession();
+        if (error) throw error;
+        if (session) {
+          await syncSessionWithBackend(session);
         }
+      } catch (err) {
+        console.error("Session fetch error:", err);
+      } finally {
+        setLoading(false);
       }
     };
-    handleOAuthCallback();
+
+    checkActiveSession();
+
+    // Listen for auth stage changes (including redirect callback sign in)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if ((event === 'SIGNED_IN' || event === 'USER_UPDATED') && session) {
+        setLoading(true);
+        await syncSessionWithBackend(session);
+        setLoading(false);
+      }
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
   }, [navigate, onLogin]);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -104,14 +98,22 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
     }
   };
 
-  const handleGoogleLogin = () => {
+  const handleGoogleLogin = async () => {
     setLoading(true);
     setErrorMsg(null);
-    
-    // Redirect browser to your Supabase project Google Auth gateway
-    const supabaseUrl = "https://szogxxuppqsnybefaptq.supabase.co";
-    const redirectTo = encodeURIComponent(window.location.origin + "/login");
-    window.location.href = `${supabaseUrl}/auth/v1/authorize?provider=google&redirect_to=${redirectTo}`;
+    try {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: window.location.origin + '/login'
+        }
+      });
+      if (error) throw error;
+    } catch (err: any) {
+      console.error("Google Auth Init Error:", err);
+      setErrorMsg(err.message || "Failed to initialize Google authentication.");
+      setLoading(false);
+    }
   };
 
   return (
