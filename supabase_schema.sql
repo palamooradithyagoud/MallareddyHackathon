@@ -2,17 +2,30 @@
 -- SUPABASE POSTGRESQL DATABASE SCHEMA REFERENCE
 -- ==========================================
 
--- 1. Create Users Table
-CREATE TABLE IF NOT EXISTS users (
+-- 1. Drop existing tables if they exist to start fresh
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+DROP FUNCTION IF EXISTS public.handle_new_user() CASCADE;
+DROP TABLE IF EXISTS job_analysis CASCADE;
+DROP TABLE IF EXISTS career_preferences CASCADE;
+DROP TABLE IF EXISTS certifications CASCADE;
+DROP TABLE IF EXISTS experience CASCADE;
+DROP TABLE IF EXISTS skills CASCADE;
+DROP TABLE IF EXISTS projects CASCADE;
+DROP TABLE IF EXISTS education CASCADE;
+DROP TABLE IF EXISTS profiles CASCADE;
+DROP TABLE IF EXISTS users CASCADE;
+
+-- 2. Create Users Table
+CREATE TABLE users (
     id SERIAL PRIMARY KEY,
     email VARCHAR UNIQUE NOT NULL,
-    password_hash VARCHAR, -- Nullable for Google OAuth users
+    password_hash VARCHAR, -- Nullable for OAuth/Google users
     full_name VARCHAR,
     created_at TIMESTAMP DEFAULT TIMEZONE('utc', NOW())
 );
 
--- 2. Create Profiles Table
-CREATE TABLE IF NOT EXISTS profiles (
+-- 3. Create Profiles Table
+CREATE TABLE profiles (
     id SERIAL PRIMARY KEY,
     user_id INTEGER UNIQUE REFERENCES users(id) ON DELETE CASCADE,
     bio TEXT,
@@ -21,8 +34,8 @@ CREATE TABLE IF NOT EXISTS profiles (
     updated_at TIMESTAMP DEFAULT TIMEZONE('utc', NOW())
 );
 
--- 3. Create Education Table
-CREATE TABLE IF NOT EXISTS education (
+-- 4. Create Education Table
+CREATE TABLE education (
     id SERIAL PRIMARY KEY,
     profile_id INTEGER REFERENCES profiles(id) ON DELETE CASCADE,
     institution VARCHAR NOT NULL,
@@ -33,8 +46,8 @@ CREATE TABLE IF NOT EXISTS education (
     end_date VARCHAR
 );
 
--- 4. Create Projects Table
-CREATE TABLE IF NOT EXISTS projects (
+-- 5. Create Projects Table
+CREATE TABLE projects (
     id SERIAL PRIMARY KEY,
     profile_id INTEGER REFERENCES profiles(id) ON DELETE CASCADE,
     title VARCHAR NOT NULL,
@@ -43,16 +56,16 @@ CREATE TABLE IF NOT EXISTS projects (
     url VARCHAR
 );
 
--- 5. Create Skills Table
-CREATE TABLE IF NOT EXISTS skills (
+-- 6. Create Skills Table
+CREATE TABLE skills (
     id SERIAL PRIMARY KEY,
     profile_id INTEGER REFERENCES profiles(id) ON DELETE CASCADE,
     name VARCHAR NOT NULL,
     level VARCHAR DEFAULT 'Intermediate'
 );
 
--- 6. Create Experience Table
-CREATE TABLE IF NOT EXISTS experience (
+-- 7. Create Experience Table
+CREATE TABLE experience (
     id SERIAL PRIMARY KEY,
     profile_id INTEGER REFERENCES profiles(id) ON DELETE CASCADE,
     company VARCHAR NOT NULL,
@@ -62,8 +75,8 @@ CREATE TABLE IF NOT EXISTS experience (
     end_date VARCHAR
 );
 
--- 7. Create Certifications Table
-CREATE TABLE IF NOT EXISTS certifications (
+-- 8. Create Certifications Table
+CREATE TABLE certifications (
     id SERIAL PRIMARY KEY,
     profile_id INTEGER REFERENCES profiles(id) ON DELETE CASCADE,
     name VARCHAR NOT NULL,
@@ -73,8 +86,8 @@ CREATE TABLE IF NOT EXISTS certifications (
     url VARCHAR
 );
 
--- 8. Create Career Preferences Table
-CREATE TABLE IF NOT EXISTS career_preferences (
+-- 9. Create Career Preferences Table
+CREATE TABLE career_preferences (
     id SERIAL PRIMARY KEY,
     profile_id INTEGER UNIQUE REFERENCES profiles(id) ON DELETE CASCADE,
     preferred_roles VARCHAR,
@@ -83,8 +96,8 @@ CREATE TABLE IF NOT EXISTS career_preferences (
     min_salary VARCHAR
 );
 
--- 9. Create Job Analysis Table
-CREATE TABLE IF NOT EXISTS job_analysis (
+-- 10. Create Job Analysis Table
+CREATE TABLE job_analysis (
     id SERIAL PRIMARY KEY,
     user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
     company VARCHAR,
@@ -99,11 +112,7 @@ CREATE TABLE IF NOT EXISTS job_analysis (
     created_at TIMESTAMP DEFAULT TIMEZONE('utc', NOW())
 );
 
--- ==========================================
--- SUPABASE AUTH USER SYNCHRONIZATION TRIGGER
--- ==========================================
-
--- Trigger function to automatically insert new oauth/google signups into public.users and public.profiles
+-- 11. Create or replace the sync function for Supabase Auth
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS trigger AS $$
 DECLARE
@@ -133,9 +142,7 @@ EXCEPTION
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- Drop and recreate the trigger
-DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
-
+-- 12. Create the trigger on the Supabase auth.users table
 CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
   FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
