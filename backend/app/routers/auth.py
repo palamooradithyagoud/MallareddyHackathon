@@ -69,20 +69,46 @@ def login(login_data: UserLogin, db: Session = Depends(get_db)):
     }
 
 
+from app.services.supabase_service import supabase_client
+
 @router.post("/google-login", response_model=Token)
 def google_login(google_data: GoogleLoginRequest, db: Session = Depends(get_db)):
     """
-    Handles authentication with Google credentials.
-    Automatically registers new users, self-heals missing profiles/preferences, and returns a local application JWT.
+    Securely handles authentication with Google credentials.
+    Verifies the Supabase access token directly with Supabase Auth, extracts verified user details,
+    registers new users, self-heals missing profiles/preferences, and returns a local JWT.
     """
-    email = google_data.email
-    full_name = google_data.full_name
-    
-    if not email:
+    if not google_data.credential:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Email is required for Google authentication"
+            detail="Supabase access token (credential) is required"
         )
+        
+    if not supabase_client:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Supabase client is not initialized on the backend"
+        )
+        
+    # Verify the Supabase token server-side
+    try:
+        user_resp = supabase_client.auth.get_user(google_data.credential)
+        supabase_user = user_resp.user
+        if not supabase_user or not supabase_user.email:
+            raise ValueError("Authenticated user email is empty or invalid")
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=f"Invalid or expired Supabase token: {str(e)}"
+        )
+        
+    # Use only verified email and name extracted from the verified token
+    email = supabase_user.email
+    full_name = (
+        supabase_user.user_metadata.get("full_name") 
+        or supabase_user.user_metadata.get("name") 
+        or email.split("@")[0]
+    )
         
     # Find or register user
     user = db.query(User).filter(User.email == email).first()
