@@ -1,8 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Mail, Lock, LogIn, AlertTriangle, ArrowRight } from 'lucide-react';
 import { authService } from '../services/api';
-import { supabase } from '../utils/supabaseClient';
 
 interface LoginPageProps {
   onLogin: (token: string, user: any) => void;
@@ -14,64 +13,6 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-
-  // Sync session details from Supabase with our backend database
-  const syncSessionWithBackend = async (session: any) => {
-    if (!session || !session.user) return;
-    try {
-      const googleEmail = session.user.email;
-      const googleName = session.user.user_metadata?.full_name || session.user.user_metadata?.name || googleEmail?.split('@')[0] || "Google User";
-      
-      const data = await authService.googleLogin({
-        credential: session.access_token,
-        email: googleEmail,
-        full_name: googleName
-      });
-      
-      onLogin(data.access_token, {
-        id: data.user_id,
-        email: data.email,
-        full_name: data.full_name,
-      });
-      navigate('/dashboard');
-    } catch (err: any) {
-      console.error("Backend Session Sync Error:", err);
-      setErrorMsg("Failed to synchronize session with the backend database.");
-    }
-  };
-
-  // Check current session state and listen for login redirect events
-  useEffect(() => {
-    const checkActiveSession = async () => {
-      setLoading(true);
-      try {
-        const { data: { session }, error } = await supabase.auth.getSession();
-        if (error) throw error;
-        if (session) {
-          await syncSessionWithBackend(session);
-        }
-      } catch (err) {
-        console.error("Session fetch error:", err);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    checkActiveSession();
-
-    // Listen for auth stage changes (including redirect callback sign in)
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if ((event === 'SIGNED_IN' || event === 'USER_UPDATED') && session) {
-        setLoading(true);
-        await syncSessionWithBackend(session);
-        setLoading(false);
-      }
-    });
-
-    return () => {
-      subscription.unsubscribe();
-    };
-  }, [navigate, onLogin]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -94,24 +35,6 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
     } catch (err: any) {
       setErrorMsg(err.response?.data?.detail || "Invalid login credentials.");
     } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleGoogleLogin = async () => {
-    setLoading(true);
-    setErrorMsg(null);
-    try {
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: {
-          redirectTo: window.location.origin + '/login'
-        }
-      });
-      if (error) throw error;
-    } catch (err: any) {
-      console.error("Google Auth Init Error:", err);
-      setErrorMsg(err.message || "Failed to initialize Google authentication.");
       setLoading(false);
     }
   };
@@ -183,38 +106,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
             </button>
           </form>
 
-          <div className="relative flex py-2 items-center">
-            <div className="flex-grow border-t border-border/50"></div>
-            <span className="flex-shrink mx-4 text-text-muted text-xs font-medium uppercase">Or</span>
-            <div className="flex-grow border-t border-border/50"></div>
-          </div>
 
-          <button
-            onClick={handleGoogleLogin}
-            disabled={loading}
-            className="w-full flex items-center justify-center gap-2.5 rounded-lg border border-border bg-background/30 px-4 py-2.5 text-sm font-medium text-text-primary hover:bg-border/30 transition-all"
-          >
-            {/* Google Logo vector */}
-            <svg className="h-4 w-4" viewBox="0 0 24 24">
-              <path
-                fill="#4285F4"
-                d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v3.92h6.69c-.29 1.5-1.14 2.78-2.4 3.62v3.01h3.87c2.26-2.08 3.58-5.15 3.58-8.48z"
-              />
-              <path
-                fill="#34A853"
-                d="M12 24c3.24 0 5.97-1.08 7.96-2.91l-3.87-3.01c-1.08.72-2.45 1.16-4.09 1.16-3.15 0-5.81-2.13-6.76-4.99H1.27v3.11C3.25 21.3 7.37 24 12 24z"
-              />
-              <path
-                fill="#FBBC05"
-                d="M5.24 14.25c-.24-.72-.38-1.5-.38-2.31s.14-1.59.38-2.31V6.51H1.27C.46 8.16 0 10.02 0 12s.46 3.84 1.27 5.49l3.97-3.24z"
-              />
-              <path
-                fill="#EA4335"
-                d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.37 0 3.25 2.7 1.27 6.51l3.97 3.24c.95-2.86 3.61-4.99 6.76-4.99z"
-              />
-            </svg>
-            <span>Continue with Google</span>
-          </button>
         </div>
 
         <p className="text-center text-xs text-text-secondary">
