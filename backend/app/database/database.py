@@ -6,7 +6,17 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./jobs.db")
+DATABASE_URL = os.getenv("DATABASE_URL", "")
+
+if not DATABASE_URL:
+    if os.getenv("VERCEL"):
+        DATABASE_URL = "sqlite:////tmp/jobs.db"
+    else:
+        DATABASE_URL = "sqlite:///./jobs.db"
+
+# Force pg8000 driver for PostgreSQL connections
+if DATABASE_URL.startswith("postgresql://"):
+    DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+pg8000://", 1)
 
 # Handle SQLite threading issue
 if DATABASE_URL.startswith("sqlite"):
