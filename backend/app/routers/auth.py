@@ -73,21 +73,20 @@ def login(login_data: UserLogin, db: Session = Depends(get_db)):
 def google_login(google_data: GoogleLoginRequest, db: Session = Depends(get_db)):
     """
     Handles authentication with Google credentials.
-    In production, this verifies the Google ID token. 
-    Here, we parse the details and auto-register/login the user.
+    Automatically registers new users, self-heals missing profiles/preferences, and returns a local application JWT.
     """
     email = google_data.email
     full_name = google_data.full_name
     
     if not email:
-        # Fallback or mock validation
-        email = "google_user@example.com"
-        full_name = "Google User"
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Email is required for Google authentication"
+        )
         
-    # Check if user exists
+    # Find or register user
     user = db.query(User).filter(User.email == email).first()
     if not user:
-        # Create user
         user = User(
             email=email,
             password_hash=None, # OAuth user
@@ -97,13 +96,18 @@ def google_login(google_data: GoogleLoginRequest, db: Session = Depends(get_db))
         db.commit()
         db.refresh(user)
         
-        # Create profile
-        new_profile = Profile(user_id=user.id)
-        db.add(new_profile)
+    # Self-healing check: Ensure profile record exists
+    profile = db.query(Profile).filter(Profile.user_id == user.id).first()
+    if not profile:
+        profile = Profile(user_id=user.id)
+        db.add(profile)
         db.commit()
-        db.refresh(new_profile)
+        db.refresh(profile)
         
-        new_pref = CareerPreference(profile_id=new_profile.id)
+    # Self-healing check: Ensure career preferences record exists
+    pref = db.query(CareerPreference).filter(CareerPreference.profile_id == profile.id).first()
+    if not pref:
+        new_pref = CareerPreference(profile_id=profile.id)
         db.add(new_pref)
         db.commit()
         

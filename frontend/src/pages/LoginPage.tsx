@@ -18,6 +18,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
   // Sync session details from Supabase with our backend database
   const syncSessionWithBackend = async (session: any) => {
     if (!session || !session.user) return;
+    console.log("Synchronizing Supabase session with FastAPI backend for email:", session.user.email);
     try {
       const googleEmail = session.user.email;
       const googleName = session.user.user_metadata?.full_name || session.user.user_metadata?.name || googleEmail?.split('@')[0] || "Google User";
@@ -28,6 +29,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
         full_name: googleName
       });
       
+      console.log("Session sync successful, received local JWT token. Logging in user:", data.email);
       onLogin(data.access_token, {
         id: data.user_id,
         email: data.email,

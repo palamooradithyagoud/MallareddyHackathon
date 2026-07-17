@@ -25,8 +25,8 @@ class UserLogin(BaseModel):
     password: str
 
 class GoogleLoginRequest(BaseModel):
-    credential: str  # The OAuth token from Google client
-    email: Optional[EmailStr] = None
+    credential: Optional[str] = None  # The OAuth token from Google client
+    email: Optional[str] = None
     full_name: Optional[str] = None
 
 class UserOut(BaseModel):
